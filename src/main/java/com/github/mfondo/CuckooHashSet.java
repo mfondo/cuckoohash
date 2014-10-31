@@ -42,17 +42,23 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
 
     @Override
     public boolean contains(Object o) {
-        int hash = hashFunction1.hash((T)o) % values1.length;
-        Holder<T> t = values1[hash];
+        return getHolderAndPosition((T)o) != null;
+    }
+
+    private HolderAndPosition<T> getHolderAndPosition(T val) {
+        int pos = hashFunction1.hash(val) % values1.length;
+        Holder<T> t = values1[pos];
+        Holder<T>[] values = values1;
         if(t == null) {
-            hash = hashFunction2.hash((T)o) % values2.length;
-            t = values2[hash];
+            pos = hashFunction2.hash(val) % values2.length;
+            t = values2[pos];
+            values = values2;
         }
-        boolean ret;
+        HolderAndPosition<T> ret;
         if(t != null) {
-            ret = t.t.equals(o);
+            ret = t.t.equals(val) ? new HolderAndPosition<T>(values, t, pos) : null;
         } else {
-            ret = false;
+            ret = null;
         }
         return ret;
     }
@@ -89,7 +95,8 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
     private T add(Holder<T>[] values1, Holder<T>[] values2, T t) {
         Holder<T> ret = null;
         int hash;
-        for(int i = 0; i < maxInsertLoops; i++) {
+        int loops;
+        for(loops = 0; loops < maxInsertLoops; loops++) {
             hash = hashFunction1.hash(t) % values1.length;
             ret = values1[hash];
             if(ret == null) {
@@ -106,6 +113,9 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
             }
             values2[hash] = new Holder<T>(t);
             t = ret.t;
+        }
+        if(loops >= maxInsertLoops) {
+            throw new IllegalStateException();//todo resize
         }
         return ret != null ? ret.t : null;
     }
@@ -164,8 +174,16 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
 
     @Override
     public boolean remove(Object o) {
+        HolderAndPosition<T> hop = getHolderAndPosition((T)o);
+        boolean ret;
+        if(hop != null) {
+            hop.values[hop.pos] = null;
+            ret = true;
+        } else {
+            ret = false;
+        }
         size--;
-        throw new UnsupportedOperationException();//todo
+        return ret;
     }
 
     @Override
@@ -210,6 +228,18 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
 
         private Holder(T t) {
             this.t = t;
+        }
+    }
+
+    private static class HolderAndPosition<T> {
+        private final Holder<T>[] values;
+        private final Holder<T> holder;
+        private final int pos;
+
+        private HolderAndPosition(Holder<T>[] values, Holder<T> holder, int pos) {
+            this.values = values;
+            this.holder = holder;
+            this.pos = pos;
         }
     }
 }
