@@ -54,7 +54,7 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         int pos = hashFunction1.hash(val) % values1.length;
         T t = values1[pos];
         T[] values = values1;
-        if(t == null) {
+        if(t == null || !t.equals(val)) {
             pos = hashFunction2.hash(val) % values2.length;
             t = values2[pos];
             values = values2;
@@ -73,7 +73,7 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         if(contains(t)) {
             return false;
         }
-        if(size > (values1.length * loadFactor)) {
+        if(((float)size) > (values1.length * loadFactor)) {
             int newSize = size < 1 ? 16 : size * 2;
             T[] tmp1 = (T[])Array.newInstance(valueClazz, newSize);
             T[] tmp2 = (T[])Array.newInstance(valueClazz, newSize);
@@ -189,17 +189,6 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         }
         size--;
         return ret;
-    }
-
-    @Override
-    public boolean containsAll(Collection<?> c) {
-        int containCnt = 0;
-        for(Object a : c) {
-            if(contains(a)) {
-                containCnt++;
-            }
-        }
-        return containCnt == c.size();
     }
 
     @Override
