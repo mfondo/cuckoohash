@@ -14,7 +14,7 @@ import java.util.Set;
 public class CuckooHashSetTest extends TestCase {
 
     public void test1() {
-        final Set<Integer> cuckooSet = new CuckooHashSet<Integer>(100, 0.9f, new CuckooHashSet.HashFunction<Integer>() {
+        final Set<Integer> cuckooSet = new CuckooHashSet<Integer>(Integer.class, 100, 0.9f, new CuckooHashSet.HashFunction<Integer>() {
             @Override
             public int hash(Integer integer) {
                 return integer % 7;

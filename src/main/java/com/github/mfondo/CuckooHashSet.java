@@ -2,6 +2,7 @@ package com.github.mfondo;
 
 import com.google.common.collect.AbstractIterator;
 
+import java.lang.reflect.Array;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -14,20 +15,24 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
 
     private static final int DEFAULT_INITIAL_SIZE = 8;
 
+    private final Class<T> valueClazz;
     private final HashFunction<T> hashFunction1;
     private final HashFunction<T> hashFunction2;
     private final int maxInsertLoops;
     private final float loadFactor;
 
-    private Holder<T>[] values1 = new Holder[DEFAULT_INITIAL_SIZE];
-    private Holder<T>[] values2 = new Holder[DEFAULT_INITIAL_SIZE];;
+    private T[] values1;
+    private T[] values2;
     private int size = 0;
 
-    public CuckooHashSet(int maxInsertLoops, float loadFactor, HashFunction<T> hashFunction1, HashFunction<T> hashFunction2) {
+    public CuckooHashSet(Class<T> valueClazz, int maxInsertLoops, float loadFactor, HashFunction<T> hashFunction1, HashFunction<T> hashFunction2) {
+        this.valueClazz = valueClazz;
         this.maxInsertLoops = maxInsertLoops;
         this.loadFactor = loadFactor;
         this.hashFunction1 = hashFunction1;
         this.hashFunction2 = hashFunction2;
+        values1 = (T[])Array.newInstance(valueClazz, DEFAULT_INITIAL_SIZE);
+        values2 = (T[])Array.newInstance(valueClazz, DEFAULT_INITIAL_SIZE);
     }
 
     @Override
@@ -45,18 +50,18 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         return getHolderAndPosition((T)o) != null;
     }
 
-    private HolderAndPosition<T> getHolderAndPosition(T val) {
+    private ValuesAndPosition<T> getHolderAndPosition(T val) {
         int pos = hashFunction1.hash(val) % values1.length;
-        Holder<T> t = values1[pos];
-        Holder<T>[] values = values1;
+        T t = values1[pos];
+        T[] values = values1;
         if(t == null) {
             pos = hashFunction2.hash(val) % values2.length;
             t = values2[pos];
             values = values2;
         }
-        HolderAndPosition<T> ret;
+        ValuesAndPosition<T> ret;
         if(t != null) {
-            ret = t.t.equals(val) ? new HolderAndPosition<T>(values, t, pos) : null;
+            ret = t.equals(val) ? new ValuesAndPosition<T>(values, pos) : null;
         } else {
             ret = null;
         }
@@ -70,8 +75,8 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         }
         if(size > (values1.length * loadFactor)) {
             int newSize = size < 1 ? 16 : size * 2;
-            Holder<T>[] tmp1 = new Holder[newSize];
-            Holder<T>[] tmp2 = new Holder[newSize];
+            T[] tmp1 = (T[])Array.newInstance(valueClazz, newSize);
+            T[] tmp2 = (T[])Array.newInstance(valueClazz, newSize);
             addValues(values1, tmp1, tmp2);
             addValues(values2, tmp1, tmp2);
             values1 = tmp1;
@@ -82,42 +87,42 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         return true;
     }
 
-    private void addValues(Holder<T>[] from, Holder<T>[] tmp1, Holder<T>[] tmp2) {
+    private void addValues(T[] from, T[] tmp1, T[] tmp2) {
         if(from != null) {
-            for(Holder<T> h : from) {
-                if(h != null) {
-                    add(tmp1, tmp2, h.t);
+            for(T t : from) {
+                if(t != null) {
+                    add(tmp1, tmp2, t);
                 }
             }
         }
     }
 
-    private T add(Holder<T>[] values1, Holder<T>[] values2, T t) {
-        Holder<T> ret = null;
+    private T add(T[] values1, T[] values2, T t) {
+        T ret = null;
         int hash;
         int loops;
         for(loops = 0; loops < maxInsertLoops; loops++) {
             hash = hashFunction1.hash(t) % values1.length;
             ret = values1[hash];
             if(ret == null) {
-                values1[hash] = new Holder<T>(t);
+                values1[hash] = t;
                 break;
             }
-            values1[hash] = new Holder<T>(t);
-            t = ret.t;
+            values1[hash] = t;
+            t = ret;
             hash = hashFunction2.hash(t) % values2.length;
             ret = values2[hash];
             if(ret == null) {
-                values2[hash] = new Holder<T>(t);
+                values2[hash] = t;
                 break;
             }
-            values2[hash] = new Holder<T>(t);
-            t = ret.t;
+            values2[hash] = t;
+            t = ret;
         }
         if(loops >= maxInsertLoops) {
             throw new IllegalStateException();//todo resize
         }
-        return ret != null ? ret.t : null;
+        return ret;
     }
 
     @Override
@@ -130,12 +135,12 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
             @Override
             protected T computeNext() {
                 T ret = null;
-                Holder<T> h;
+                T t;
                 if(inValues1) {
                     for(; currentPos < values1.length; currentPos++) {
-                        h = values1[currentPos];
-                        if(h != null) {
-                            ret = h.t;
+                        t = values1[currentPos];
+                        if(t != null) {
+                            ret = t;
                             break;
                         }
                     }
@@ -146,9 +151,9 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
                 }
                 if(!inValues1) {
                     for(; currentPos < values2.length; currentPos++) {
-                        h = values2[currentPos];
-                        if(h != null) {
-                            ret = h.t;
+                        t = values2[currentPos];
+                        if(t != null) {
+                            ret = t;
                             break;
                         }
                     }
@@ -174,7 +179,7 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
 
     @Override
     public boolean remove(Object o) {
-        HolderAndPosition<T> hop = getHolderAndPosition((T)o);
+        ValuesAndPosition<T> hop = getHolderAndPosition((T)o);
         boolean ret;
         if(hop != null) {
             hop.values[hop.pos] = null;
@@ -221,24 +226,12 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         int hash(K k);
     }
 
-    //todo this makes things much less efficient to have to have the indirect pointer
-    //todo maybe try Array.newInstance(c, s) and pass in the class to constructor?
-    private static class Holder<T> {
-        private T t;
-
-        private Holder(T t) {
-            this.t = t;
-        }
-    }
-
-    private static class HolderAndPosition<T> {
-        private final Holder<T>[] values;
-        private final Holder<T> holder;
+    private static class ValuesAndPosition<T> {
+        private final T[] values;
         private final int pos;
 
-        private HolderAndPosition(Holder<T>[] values, Holder<T> holder, int pos) {
+        private ValuesAndPosition(T[] values, int pos) {
             this.values = values;
-            this.holder = holder;
             this.pos = pos;
         }
     }
