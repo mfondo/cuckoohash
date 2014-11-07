@@ -55,11 +55,19 @@ public class CuckooHashSetTest extends TestCase {
         assertAdd(cuckooSet, hashSet, 1);
         assertRemove(cuckooSet, hashSet, 1);
 
-        for(int i = 0; i < 100; i++) {
+        for(int i = 0; i < 1000; i++) {
             assertAdd(cuckooSet, hashSet, i);
         }
-        for(int i = 0; i < 100; i++) {
+        for(int i = 0; i < 1000; i++) {
             assertRemove(cuckooSet, hashSet, i);
+        }
+        for(int i = 0; i < 1000; i++) {
+            final int rand = (int) Math.random() * Integer.MAX_VALUE;
+            if(Math.random() > 0.5) {
+                assertAdd(cuckooSet, hashSet, rand);
+            } else {
+                assertRemove(cuckooSet, hashSet, rand);
+            }
         }
     }
 

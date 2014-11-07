@@ -4,7 +4,6 @@ import com.google.common.collect.AbstractIterator;
 
 import java.lang.reflect.Array;
 import java.util.AbstractSet;
-import java.util.Collection;
 import java.util.Iterator;
 
 /**
@@ -184,17 +183,10 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
     }
 
     @Override
-    public Object[] toArray() {
-        throw new UnsupportedOperationException();//todo
-    }
-
-    @Override
-    public <T1 extends Object> T1[] toArray(T1[] a) {
-        throw new UnsupportedOperationException();//todo
-    }
-
-    @Override
     public boolean remove(Object o) {
+        if(size < 1) {
+            return false;
+        }
         ValuesAndPosition<T> hop = getHolderAndPosition((T)o);
         boolean ret;
         if(hop != null) {
@@ -205,26 +197,6 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         }
         size--;
         return ret;
-    }
-
-    @Override
-    public boolean addAll(Collection<? extends T> c) {
-        throw new UnsupportedOperationException();//todo
-    }
-
-    @Override
-    public boolean retainAll(Collection<?> c) {
-        throw new UnsupportedOperationException();//todo
-    }
-
-    @Override
-    public boolean removeAll(Collection<?> c) {
-        throw new UnsupportedOperationException();//todo
-    }
-
-    @Override
-    public void clear() {
-        throw new UnsupportedOperationException();//todo
     }
 
     public static interface HashFunction<K> {
