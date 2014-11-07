@@ -25,6 +25,13 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
     private T[] values2;
     private int size = 0;
 
+    /**
+     * @param valueClazz type of elements stored in this set
+     * @param maxInsertLoops maximum number of loops when inserting an element before resizing
+     * @param loadFactor how close to being full before the table is resized
+     * @param hashFunction1 first hash function
+     * @param hashFunction2 second hash function - must be independent of first hash function
+     */
     public CuckooHashSet(Class<T> valueClazz, int maxInsertLoops, float loadFactor, HashFunction<T> hashFunction1, HashFunction<T> hashFunction2) {
         this.valueClazz = valueClazz;
         this.maxInsertLoops = maxInsertLoops;
@@ -74,17 +81,21 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
             return false;
         }
         if(((float)size) > (values1.length * loadFactor)) {
-            int newSize = size < 1 ? 16 : size * 2;
-            T[] tmp1 = (T[])Array.newInstance(valueClazz, newSize);
-            T[] tmp2 = (T[])Array.newInstance(valueClazz, newSize);
-            addValues(values1, tmp1, tmp2);
-            addValues(values2, tmp1, tmp2);
-            values1 = tmp1;
-            values2 = tmp2;
+            resize();
         }
         add(values1, values2, t);
         size++;
         return true;
+    }
+
+    private void resize() {
+        int newSize = size < 1 ? 16 : size * 2;
+        T[] tmp1 = (T[]) Array.newInstance(valueClazz, newSize);
+        T[] tmp2 = (T[])Array.newInstance(valueClazz, newSize);
+        addValues(values1, tmp1, tmp2);
+        addValues(values2, tmp1, tmp2);
+        values1 = tmp1;
+        values2 = tmp2;
     }
 
     private void addValues(T[] from, T[] tmp1, T[] tmp2) {
@@ -101,26 +112,31 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         T ret = null;
         int hash;
         int loops;
-        for(loops = 0; loops < maxInsertLoops; loops++) {
-            hash = hashFunction1.hash(t) % values1.length;
-            ret = values1[hash];
-            if(ret == null) {
+        outer:
+        while(true) {
+            for(loops = 0; loops < maxInsertLoops; loops++) {
+                hash = hashFunction1.hash(t) % values1.length;
+                ret = values1[hash];
+                if(ret == null) {
+                    values1[hash] = t;
+                    break;
+                }
                 values1[hash] = t;
-                break;
-            }
-            values1[hash] = t;
-            t = ret;
-            hash = hashFunction2.hash(t) % values2.length;
-            ret = values2[hash];
-            if(ret == null) {
+                t = ret;
+                hash = hashFunction2.hash(t) % values2.length;
+                ret = values2[hash];
+                if(ret == null) {
+                    values2[hash] = t;
+                    break;
+                }
                 values2[hash] = t;
-                break;
+                t = ret;
             }
-            values2[hash] = t;
-            t = ret;
-        }
-        if(loops >= maxInsertLoops) {
-            throw new IllegalStateException();//todo resize
+            if(loops >= maxInsertLoops) {
+                resize();
+            } else {
+                break outer;
+            }
         }
         return ret;
     }

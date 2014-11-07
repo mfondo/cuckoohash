@@ -17,12 +17,16 @@ public class CuckooHashSetTest extends TestCase {
         final Set<Integer> cuckooSet = new CuckooHashSet<Integer>(Integer.class, 100, 0.9f, new CuckooHashSet.HashFunction<Integer>() {
             @Override
             public int hash(Integer integer) {
-                return integer % 7;
+                return integer;
             }
         }, new CuckooHashSet.HashFunction<Integer>() {
             @Override
             public int hash(Integer integer) {
-                return integer % 11;
+                //from http://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
+                integer = ((integer >> 16) ^ integer) * 0x45d9f3b;
+                integer = ((integer >> 16) ^ integer) * 0x45d9f3b;
+                integer = ((integer >> 16) ^ integer);
+                return integer;
             }
         });
 
@@ -51,10 +55,10 @@ public class CuckooHashSetTest extends TestCase {
         assertAdd(cuckooSet, hashSet, 1);
         assertRemove(cuckooSet, hashSet, 1);
 
-        for(int i = 0; i < 10; i++) {
+        for(int i = 0; i < 100; i++) {
             assertAdd(cuckooSet, hashSet, i);
         }
-        for(int i = 0; i < 10; i++) {
+        for(int i = 0; i < 100; i++) {
             assertRemove(cuckooSet, hashSet, i);
         }
     }
