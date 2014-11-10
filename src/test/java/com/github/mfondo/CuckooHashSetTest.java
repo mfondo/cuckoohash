@@ -1,5 +1,6 @@
 package com.github.mfondo;
 
+import com.google.common.base.Preconditions;
 import junit.framework.TestCase;
 
 import java.util.HashSet;
@@ -13,7 +14,13 @@ import java.util.Set;
  */
 public class CuckooHashSetTest extends TestCase {
 
+    private long cuckooHashAddTime = 0L;
+    private long hashAddTime = 0L;
+    private long cuckooHashRemoveTime = 0L;
+    private long hashRemoveTime = 0L;
+
     public void test1() {
+
         final Set<Integer> cuckooSet = new CuckooHashSet<Integer>(Integer.class, 100, 0.9f, new CuckooHashSet.HashFunction<Integer>() {
             @Override
             public int hash(Integer integer) {
@@ -30,17 +37,6 @@ public class CuckooHashSetTest extends TestCase {
             }
         });
 
-        //todo remove - for debugging
-        /*dumpContents(cuckooSet);
-        cuckooSet.add(1);
-        dumpContents(cuckooSet);
-        cuckooSet.add(2);
-        dumpContents(cuckooSet);
-        for(int i = 3; i < 10; i++) {
-            cuckooSet.add(i);
-        }
-        dumpContents(cuckooSet);*/
-
         final Set<Integer> hashSet = new HashSet<Integer>();
 
         assertAdd(cuckooSet, hashSet, 1);
@@ -55,39 +51,55 @@ public class CuckooHashSetTest extends TestCase {
         assertAdd(cuckooSet, hashSet, 1);
         assertRemove(cuckooSet, hashSet, 1);
 
-        for(int i = 0; i < 1000; i++) {
+        final int iterations = 1000;
+
+        for(int i = 0; i < iterations; i++) {
             assertAdd(cuckooSet, hashSet, i);
         }
-        for(int i = 0; i < 1000; i++) {
+        for(int i = 0; i < iterations; i++) {
             assertRemove(cuckooSet, hashSet, i);
         }
-        for(int i = 0; i < 1000; i++) {
-            final int rand = (int) Math.random() * Integer.MAX_VALUE;
-            if(Math.random() > 0.5) {
+        for(int i = 0; i < iterations; i++) {
+            if(Math.random() > 0.25f) {
+                int rand = (int) Math.random() * Integer.MAX_VALUE;
                 assertAdd(cuckooSet, hashSet, rand);
             } else {
+                int rand;
+                if(hashSet.isEmpty()) {
+                    rand = (int) Math.random() * Integer.MAX_VALUE;
+                } else {
+                    rand = hashSet.iterator().next();
+                }
                 assertRemove(cuckooSet, hashSet, rand);
             }
         }
+
+        //just for info purposes - compare performance of HashSet vs CuckooHashSet
+        System.out.println("Cuckoo Add Nanos:\t\t" + cuckooHashAddTime);
+        System.out.println("HashSet Remove Nanos:\t" + hashAddTime);
+        System.out.println("Cuckoo Remove Nanos:\t" + cuckooHashRemoveTime);
+        System.out.println("HashSet Remove Nanos:\t" + hashRemoveTime);
     }
 
-    //todo remove - this is for debugging
-    private void dumpContents(Set<Integer> set) {
-        for(Integer i : set) {
-            System.out.print(i + ",");
-        }
-        System.out.println();
+    private void assertAdd(Set<Integer> cuckooSet, Set<Integer> hashSet, int i) {
+        Preconditions.checkArgument(cuckooSet instanceof CuckooHashSet && hashSet instanceof HashSet);
+        long start = System.nanoTime();
+        cuckooSet.add(i);
+        cuckooHashAddTime += System.nanoTime() - start;
+        start = System.nanoTime();
+        hashSet.add(i);
+        hashAddTime += System.nanoTime() - start;
+        assertEquals(cuckooSet, hashSet);
     }
 
-    private void assertAdd(Set<Integer> set1, Set<Integer> set2, int i) {
-        set1.add(i);
-        set2.add(i);
-        assertEquals(set1, set2);
-    }
-
-    private void assertRemove(Set<Integer> set1, Set<Integer> set2, int i) {
-        set1.remove(i);
-        set2.remove(i);
-        assertEquals(set1, set2);
+    private void assertRemove(Set<Integer> cuckooSet, Set<Integer> hashSet, int i) {
+        Preconditions.checkArgument(cuckooSet instanceof CuckooHashSet && hashSet instanceof HashSet);
+        long start = System.nanoTime();
+        cuckooSet.remove(i);
+        cuckooHashRemoveTime += System.nanoTime() - start;
+        start = System.nanoTime();
+        hashSet.remove(i);
+        hashRemoveTime += System.nanoTime() - start;
+        assertEquals(cuckooSet, hashSet);
     }
 }
