@@ -9,10 +9,17 @@ import java.util.Iterator;
 /**
  * http://en.wikipedia.org/wiki/Cuckoo_hashing
  * Implementation of http://www.cs.tau.ac.il/~shanir/advanced-seminar-data-structures-2007/bib/pagh01cuckoo.pdf
+ *
+ * TODO shrink the values to default initial size when enough elements removed
+ * TODO use one T[] instead of two
  */
 public class CuckooHashSet<T> extends AbstractSet<T> {
 
     private static final int DEFAULT_INITIAL_SIZE = 8;
+
+    private static final int UPPER_BITS_MASK = 0xFFFF0000;
+    private static final int UPPER_BITS_SHIFT = 16;
+    private static final int LOWER_BITS_MASK = 0xFFFF;
 
     private final Class<T> valueClazz;
     private final HashFunction<T> hashFunction1;
@@ -23,6 +30,32 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
     private T[] values1;
     private T[] values2;
     private int size = 0;
+
+    /**
+     * Uses {@link Object#hashCode()} as the hash function
+     * @param valueClazz type of elements stored in this set
+     * @param maxInsertLoops maximum number of loops when inserting an element before resizing
+     * @param loadFactor how close to being full before the table is resized
+     */
+    public CuckooHashSet(Class<T> valueClazz, int maxInsertLoops, float loadFactor) {
+        this(valueClazz, maxInsertLoops, loadFactor, new HashFunction<T>() {
+            @Override
+            public int hash(T t) {
+                return t.hashCode();
+            }
+        });
+    }
+
+    /**
+     * Like the constructor below, except splits the upper/lower bits of hashFunction1's output to be used for the two hashes
+     * @param valueClazz type of elements stored in this set
+     * @param maxInsertLoops maximum number of loops when inserting an element before resizing
+     * @param loadFactor how close to being full before the table is resized
+     * @param hashFunction1 hash function whose result will be split into upper/lower halves to serves as two hash outputs
+     */
+    public CuckooHashSet(Class<T> valueClazz, int maxInsertLoops, float loadFactor, HashFunction<T> hashFunction1) {
+        this(valueClazz, maxInsertLoops, loadFactor, hashFunction1, null);
+    }
 
     /**
      * @param valueClazz type of elements stored in this set
@@ -57,11 +90,23 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
     }
 
     private ValuesAndPosition<T> getHolderAndPosition(T val) {
-        int pos = hashFunction1.hash(val) % values1.length;
+        final int hashFunc1Pos = hashFunction1.hash(val);
+        int pos;
+        if(hashFunction2 == null) {
+            pos = (hashFunc1Pos & UPPER_BITS_MASK) >> UPPER_BITS_SHIFT;
+        } else {
+            pos = hashFunc1Pos;
+        }
+        pos %= values1.length;
         T t = values1[pos];
         T[] values = values1;
         if(t == null || !t.equals(val)) {
-            pos = hashFunction2.hash(val) % values2.length;
+            if(hashFunction2 == null) {
+                pos = hashFunc1Pos & LOWER_BITS_MASK;
+            } else {
+                pos = hashFunction2.hash(val);
+            }
+            pos %= values2.length;
             t = values2[pos];
             values = values2;
         }
@@ -87,14 +132,25 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         return true;
     }
 
-    private void resize() {
-        int newSize = size < 1 ? 16 : size * 2;
-        T[] tmp1 = (T[]) Array.newInstance(valueClazz, newSize);
-        T[] tmp2 = (T[])Array.newInstance(valueClazz, newSize);
-        addValues(values1, tmp1, tmp2);
-        addValues(values2, tmp1, tmp2);
-        values1 = tmp1;
-        values2 = tmp2;
+    /**
+     * @return true if resize actually occurred
+     */
+    private boolean resize() {
+        boolean didResize;
+        int currentSize = values1.length;
+        int newSize = size < 1 ? 16 : currentSize * 2;
+        if(newSize == currentSize) {
+            didResize = false;
+        } else {
+            T[] tmp1 = (T[]) Array.newInstance(valueClazz, newSize);
+            T[] tmp2 = (T[])Array.newInstance(valueClazz, newSize);
+            addValues(values1, tmp1, tmp2);
+            addValues(values2, tmp1, tmp2);
+            values1 = tmp1;
+            values2 = tmp2;
+            didResize = true;
+        }
+        return didResize;
     }
 
     private void addValues(T[] from, T[] tmp1, T[] tmp2) {
@@ -109,30 +165,44 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
 
     private T add(T[] values1, T[] values2, T t) {
         T ret = null;
+        int pos;
         int hash;
         int loops;
         outer:
         while(true) {
             for(loops = 0; loops < maxInsertLoops; loops++) {
-                hash = hashFunction1.hash(t) % values1.length;
-                ret = values1[hash];
+                hash = hashFunction1.hash(t);
+                if(hashFunction2 == null) {
+                    pos = (hash & UPPER_BITS_MASK) >> UPPER_BITS_SHIFT;
+                } else {
+                    pos = hash;
+                }
+                pos %= values1.length;
+                ret = values1[pos];
                 if(ret == null) {
-                    values1[hash] = t;
+                    values1[pos] = t;
                     break;
                 }
-                values1[hash] = t;
+                values1[pos] = t;
                 t = ret;
-                hash = hashFunction2.hash(t) % values2.length;
-                ret = values2[hash];
+                if(hashFunction2 == null) {
+                    pos = hashFunction1.hash(t) & LOWER_BITS_MASK;
+                } else {
+                    pos = hashFunction2.hash(t);
+                }
+                pos %= values2.length;
+                ret = values2[pos];
                 if(ret == null) {
-                    values2[hash] = t;
+                    values2[pos] = t;
                     break;
                 }
-                values2[hash] = t;
+                values2[pos] = t;
                 t = ret;
             }
             if(loops >= maxInsertLoops) {
-                resize();
+                if(!resize()) {
+                    throw new IllegalStateException("maxInsertLoops exceeded and resize did not occur");
+                }
             } else {
                 break outer;
             }

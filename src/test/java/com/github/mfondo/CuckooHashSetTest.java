@@ -21,12 +21,7 @@ public class CuckooHashSetTest extends TestCase {
 
     public void test1() {
 
-        final Set<Integer> cuckooSet = new CuckooHashSet<Integer>(Integer.class, 100, 0.9f, new CuckooHashSet.HashFunction<Integer>() {
-            @Override
-            public int hash(Integer integer) {
-                return integer;
-            }
-        }, new CuckooHashSet.HashFunction<Integer>() {
+        final CuckooHashSet.HashFunction<Integer> intHashFunction = new CuckooHashSet.HashFunction<Integer>() {
             @Override
             public int hash(Integer integer) {
                 //from http://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
@@ -35,8 +30,21 @@ public class CuckooHashSetTest extends TestCase {
                 integer = ((integer >> 16) ^ integer);
                 return integer;
             }
-        });
+        };
 
+        Set<Integer> cuckooSet = new CuckooHashSet<Integer>(Integer.class, 100, 0.9f, new CuckooHashSet.HashFunction<Integer>() {
+            @Override
+            public int hash(Integer integer) {
+                return integer;
+            }
+        }, intHashFunction);
+        runTests(cuckooSet);
+
+        cuckooSet = new CuckooHashSet<Integer>(Integer.class, 100, 0.9f, intHashFunction);
+        runTests(cuckooSet);
+    }
+
+    private void runTests(Set<Integer> cuckooSet) {
         final Set<Integer> hashSet = new HashSet<Integer>();
 
         assertAdd(cuckooSet, hashSet, 1);
@@ -59,6 +67,10 @@ public class CuckooHashSetTest extends TestCase {
         for(int i = 0; i < iterations; i++) {
             assertRemove(cuckooSet, hashSet, i);
         }
+
+        //above times are not very realistic
+        clearTimes();
+
         for(int i = 0; i < iterations; i++) {
             if(Math.random() > 0.25f) {
                 int rand = (int) Math.random() * Integer.MAX_VALUE;
@@ -76,9 +88,16 @@ public class CuckooHashSetTest extends TestCase {
 
         //just for info purposes - compare performance of HashSet vs CuckooHashSet
         System.out.println("Cuckoo Add Nanos:\t\t" + cuckooHashAddTime);
-        System.out.println("HashSet Remove Nanos:\t" + hashAddTime);
+        System.out.println("HashSet Add Nanos:\t\t" + hashAddTime);
         System.out.println("Cuckoo Remove Nanos:\t" + cuckooHashRemoveTime);
         System.out.println("HashSet Remove Nanos:\t" + hashRemoveTime);
+    }
+
+    private void clearTimes() {
+        cuckooHashAddTime = 0;
+        hashAddTime = 0;
+        cuckooHashRemoveTime = 0;
+        hashRemoveTime = 0;
     }
 
     private void assertAdd(Set<Integer> cuckooSet, Set<Integer> hashSet, int i) {
