@@ -59,6 +59,8 @@ public class CuckooHashSetTest extends TestCase {
         assertAdd(cuckooSet, hashSet, 1);
         assertRemove(cuckooSet, hashSet, 1);
 
+        assertClear(cuckooSet, hashSet);
+
         final int iterations = 1000;
 
         for(int i = 0; i < iterations; i++) {
@@ -86,11 +88,21 @@ public class CuckooHashSetTest extends TestCase {
             }
         }
 
+        for(int i = 0; i < iterations; i++) {
+            int rand = (int) Math.random() * Integer.MAX_VALUE;
+            assertAdd(cuckooSet, hashSet, rand);
+        }
+        while(!hashSet.isEmpty()) {
+            int rand = hashSet.iterator().next();
+            assertRemove(cuckooSet, hashSet, rand);
+        }
+
         //just for info purposes - compare performance of HashSet vs CuckooHashSet
         System.out.println("Cuckoo Add Nanos:\t\t" + cuckooHashAddTime);
         System.out.println("HashSet Add Nanos:\t\t" + hashAddTime);
         System.out.println("Cuckoo Remove Nanos:\t" + cuckooHashRemoveTime);
         System.out.println("HashSet Remove Nanos:\t" + hashRemoveTime);
+        System.out.println();
     }
 
     private void clearTimes() {
@@ -119,6 +131,12 @@ public class CuckooHashSetTest extends TestCase {
         start = System.nanoTime();
         hashSet.remove(i);
         hashRemoveTime += System.nanoTime() - start;
+        assertEquals(cuckooSet, hashSet);
+    }
+
+    private void assertClear(Set<Integer> cuckooSet, Set<Integer> hashSet) {
+        cuckooSet.clear();
+        hashSet.clear();
         assertEquals(cuckooSet, hashSet);
     }
 }

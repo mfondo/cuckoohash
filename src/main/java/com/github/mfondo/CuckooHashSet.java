@@ -9,8 +9,6 @@ import java.util.Iterator;
 /**
  * http://en.wikipedia.org/wiki/Cuckoo_hashing
  * Implementation of http://www.cs.tau.ac.il/~shanir/advanced-seminar-data-structures-2007/bib/pagh01cuckoo.pdf
- *
- * TODO shrink the values to default initial size when enough elements removed
  */
 public class CuckooHashSet<T> extends AbstractSet<T> {
 
@@ -63,6 +61,9 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
      * @param hashFunction2 second hash function - must be independent of first hash function
      */
     public CuckooHashSet(Class<T> valueClazz, int maxInsertLoops, float loadFactor, HashFunction<T> hashFunction1, HashFunction<T> hashFunction2) {
+        if(valueClazz == null || maxInsertLoops < 1 || loadFactor <= 0 || Float.isNaN(loadFactor) || hashFunction1 == null) {
+            throw new IllegalArgumentException();
+        }
         this.valueClazz = valueClazz;
         this.maxInsertLoops = maxInsertLoops;
         this.loadFactor = loadFactor;
@@ -248,6 +249,12 @@ public class CuckooHashSet<T> extends AbstractSet<T> {
         }
         size--;
         return ret;
+    }
+
+    @Override
+    public void clear() {
+        values = (T[])Array.newInstance(valueClazz, DEFAULT_INITIAL_SIZE);
+        size = 0;
     }
 
     public static interface HashFunction<K> {
